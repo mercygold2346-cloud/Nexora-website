@@ -1,0 +1,20 @@
+:root {
+  color-scheme: light;
+  --primary: #4858d7;
+  --primary-hover: #3949c0;
+  --secondary: #8053d5;
+  --accent: #e8eafd;
+  --accent-strong: #9389e8;
+  --background: #f7f8fc;
+  --surface: #ffffff;
+  --surface-soft: #f0f2fa;
+  --text: #182033;
+  --muted-text: #69738a;
+  --border: #e3e7f0;
+  --success: #188467;
+  --error: #c84756;
+  --warning: #c3842d;
+  --hero-wash: #eceeff;
+  --brand-gradient: linear-gradient(125deg, var(--primary) 0%, var(--secondary) 100%);
+  --shadow: 0 18px 50px rgba(29, 41, 78, 0.09);
+}
