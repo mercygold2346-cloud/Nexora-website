@@ -17,9 +17,16 @@ Vite prints the local URL. Create a production build with `npm run build`.
 - Login and Register
 - Dashboard and Profile & settings
 
-The dashboard is protected by a browser-only demo session. The auth module is isolated in `src/auth/authService.js` so a real identity provider can replace it. Credentials are not checked by a server, and profile/session values in browser storage are not secure authentication. Do not use real passwords or personal data.
+Email and password registration, login, session restoration, logout, and password recovery use Supabase Auth. Configure these values in the ignored `.env.local` file before starting Vite:
 
-The Contact form validates in the browser but does not send data to a backend. The password recovery and terms links are also demo placeholders.
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+```
+
+In Supabase Authentication settings, enable email sign-ups and add `http://localhost:5173/**` and `http://127.0.0.1:5173/**` to the allowed redirect URLs (including `/dashboard` and `/reset-password`). Restart Vite after changing environment values. Never put the Supabase `service_role` key in the browser app.
+
+The dashboard and profile display data from the signed-in Supabase Auth user. Workspace projects, activity, and notification preferences remain empty until database tables and Row Level Security policies are added. The Contact form validates in the browser but does not send or save submissions. Terms still need to be configured.
 
 ## Theme branches
 

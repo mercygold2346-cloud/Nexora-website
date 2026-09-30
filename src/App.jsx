@@ -6,6 +6,7 @@ import { About, Contact, Pricing, Services } from './pages/MarketingPages.jsx'
 import { Login, Register } from './pages/AuthPages.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Profile from './pages/Profile.jsx'
+import ResetPassword from './pages/ResetPassword.jsx'
 
 export default function App() {
   const { pathname } = useLocation()
@@ -14,6 +15,7 @@ export default function App() {
       '/': 'Clarity for what comes next', '/about': 'About', '/services': 'Services',
       '/pricing': 'Pricing', '/contact': 'Contact', '/login': 'Log in',
       '/register': 'Create an account', '/dashboard': 'Dashboard', '/profile': 'Profile & settings',
+      '/reset-password': 'Reset password',
     }
     document.title = `${titles[pathname] || 'Clarity for what comes next'} | Nexora`
   }, [pathname])
@@ -31,6 +33,7 @@ export default function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/profile" element={<Profile />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

@@ -1,23 +1,58 @@
-const SESSION_KEY = 'nexora.demo.session'
+import { isSupabaseConfigured, setRememberSession, supabase } from '../lib/supabaseClient.js'
 
-// Frontend demo only. Replace this module with a trusted provider before production.
-export function signIn({ name, email, remember = false }) {
-  const session = { name: name || email.split('@')[0], email, signedInAt: new Date().toISOString() }
-  localStorage.removeItem(SESSION_KEY)
-  sessionStorage.removeItem(SESSION_KEY)
-  ;(remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(session))
-  return session
-}
-
-export function signOut() {
-  localStorage.removeItem(SESSION_KEY)
-  sessionStorage.removeItem(SESSION_KEY)
-}
-
-export function getSession() {
-  try {
-    return JSON.parse(localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY) || 'null')
-  } catch {
-    return null
+function requireSupabase() {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured. Check the URL and publishable key in .env.local, then restart the dev server.')
   }
+}
+
+export async function signInWithPassword({ email, password, remember }) {
+  requireSupabase()
+  setRememberSession(remember)
+  const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+  if (error) throw error
+  return data
+}
+
+export async function signUpWithPassword({ name, email, password }) {
+  requireSupabase()
+  const { data, error } = await supabase.auth.signUp({
+    email: email.trim(),
+    password,
+    options: {
+      data: { full_name: name.trim() },
+      emailRedirectTo: `${window.location.origin}/dashboard`,
+    },
+  })
+  if (error) throw error
+  if (data.session) setRememberSession(true)
+  return data
+}
+
+export async function requestPasswordReset(email) {
+  requireSupabase()
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: `${window.location.origin}/reset-password`,
+  })
+  if (error) throw error
+}
+
+export async function updatePassword(password) {
+  requireSupabase()
+  const { data, error } = await supabase.auth.updateUser({ password })
+  if (error) throw error
+  return data.user
+}
+
+export async function updateDisplayName(name) {
+  requireSupabase()
+  const { data, error } = await supabase.auth.updateUser({ data: { full_name: name.trim() } })
+  if (error) throw error
+  return data.user
+}
+
+export async function signOut() {
+  if (!supabase) return
+  const { error } = await supabase.auth.signOut()
+  if (error) throw error
 }
