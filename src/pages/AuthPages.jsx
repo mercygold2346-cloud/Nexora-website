@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ArrowLeft, ArrowUpRight, Eye, EyeOff, LockKeyhole, MoveUpRight, ShieldCheck } from 'lucide-react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import Brand from '../components/Brand.jsx'
 import { useAuth } from '../auth/AuthProvider.jsx'
 import { requestPasswordReset, signInWithPassword, signUpWithPassword } from '../auth/authService.js'
@@ -84,6 +84,14 @@ export function Login() {
       await signInWithPassword({ email, password, remember })
       navigate('/dashboard')
     } catch (authError) {
+      const message = explainAuthError(authError).toLowerCase()
+      if (message.includes('incorrect') || message.includes('not registered') || message.includes('invalid login credentials')) {
+        navigate('/register', {
+          replace: true,
+          state: { notice: 'Create your account first before logging in.' },
+        })
+        return
+      }
       setError(explainAuthError(authError))
     } finally {
       setBusy(false)
@@ -128,6 +136,7 @@ export function Login() {
 
 export function Register() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { session, loading, configured } = useAuth()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -135,8 +144,8 @@ export function Register() {
   const [confirm, setConfirm] = useState('')
   const [terms, setTerms] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
+  const [error, setError] = useState(location.state?.notice || '')
+  const [notice, setNotice] = useState(location.state?.notice || '')
 
   if (loading) return <AuthLayout title="Start with Nexora" description="Checking your Nexora session." configured={configured} />
   if (session) return <Navigate to="/dashboard" replace />
@@ -163,8 +172,11 @@ export function Register() {
     }
   }
 
+  const accountRequiredNotice = location.state?.notice || 'Create your account first before logging in.'
+
   return (
     <AuthLayout title="Start with Nexora" description="Create your account with your email and password." configured={configured}>
+      {accountRequiredNotice && <p className="form-notice" role="status">{accountRequiredNotice}</p>}
       <form className="form-stack auth-form" onSubmit={submit} noValidate>
         <label className="field"><span>Full name</span><input name="name" value={name} onChange={event => setName(event.target.value)} autoComplete="name" placeholder="Alex Morgan" required /></label>
         <label className="field"><span>Email address</span><input type="email" name="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" placeholder="you@company.com" required /></label>
