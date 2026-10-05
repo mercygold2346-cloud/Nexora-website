@@ -16,15 +16,17 @@ export function AuthProvider({ children }) {
     }
 
     let active = true
+    let authEventReceived = false
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (active) {
+        authEventReceived = true
         setSession(nextSession)
         setLoading(false)
       }
     })
 
     supabase.auth.getSession().then(({ data, error }) => {
-      if (active) {
+      if (active && !authEventReceived) {
         setSession(error ? null : data.session)
         setLoading(false)
       }

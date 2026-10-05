@@ -15,7 +15,7 @@ Vite prints the local URL. Create a production build with `npm run build`.
 
 - Home, About, Services, Pricing, and Contact
 - Login and Register
-- Dashboard and Profile & settings
+- Member dashboard, Admin console, People directory, and Profile & settings
 
 Email and password registration, login, session restoration, logout, and password recovery use Supabase Auth. Configure these values in the ignored `.env.local` file before starting Vite:
 
@@ -24,9 +24,15 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 ```
 
-In Supabase Authentication settings, enable email sign-ups and add `http://localhost:5173/**` and `http://127.0.0.1:5173/**` to the allowed redirect URLs (including `/dashboard` and `/reset-password`). Restart Vite after changing environment values. Never put the Supabase `service_role` key in the browser app.
+In Supabase Authentication settings, enable email sign-ups and add the local app origins to the allowed redirect URLs, including `/dashboard`, `/reset-password`, and `/auth/callback`. Google sign-in also requires enabling Google under Supabase Authentication > Providers, configuring its OAuth client ID and secret there, and adding the Supabase callback URL shown by that provider to the Google OAuth client's authorized redirect URIs. Add the app's exact `/auth/callback` URL to Supabase's redirect allowlist for each deployed origin. Keep provider secrets in Supabase, never in frontend code.
 
-The dashboard and profile display data from the signed-in Supabase Auth user. Workspace projects, activity, and notification preferences remain empty until database tables and Row Level Security policies are added. The Contact form validates in the browser but does not send or save submissions. Terms still need to be configured.
+The login screen offers Member, Admin, and Superadmin access. Apply the Supabase migrations before using profiles or `/users`. The server-controlled role is stored in Supabase Auth `app_metadata`; role changes use the service-only database function described in [the profile security guide](docs/PROFILE_SECURITY.md). Never put a service-role key in browser code or use editable `user_metadata` for authorization.
+
+Profiles and profile images use PostgreSQL RLS and a private Supabase Storage bucket. The `/users` directory receives profile-image paths only when the backend visibility policy permits them. Workspace projects, activity, and notification preferences remain unimplemented. The Contact form validates in the browser but does not send or save submissions. Terms still need to be configured.
+
+Run database security tests with `npm run test:security` after installing the Supabase CLI and Docker. See [the profile security guide](docs/PROFILE_SECURITY.md) for schema, policies, role assignment, storage, and test setup.
+
+Google-created accounts receive the default `member` role. Admin and superadmin roles must still be granted through the trusted server-side role process; Google sign-in does not accept a client-selected role.
 
 ## Theme branches
 

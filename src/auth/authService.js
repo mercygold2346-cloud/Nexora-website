@@ -6,11 +6,45 @@ function requireSupabase() {
   }
 }
 
-export async function signInWithPassword({ email, password, remember }) {
+function normalizeRole(role) {
+  return String(role || 'member').toLowerCase().replace(/[_\s-]/g, '')
+}
+
+export function getAccountRole(user) {
+  return normalizeRole(user?.app_metadata?.role)
+}
+
+export function getRoleHomePath(user) {
+  return ['admin', 'superadmin'].includes(getAccountRole(user)) ? '/admin' : '/dashboard'
+}
+
+export async function signInWithGoogle({ remember = true } = {}) {
   requireSupabase()
+  setRememberSession(remember)
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`,
+      queryParams: { prompt: 'select_account' },
+    },
+  })
+  if (error) throw error
+}
+
+export async function signInWithPassword({ email, password, remember, role = 'member' }) {
+  requireSupabase()
+  const expectedRole = normalizeRole(role)
+  if (!['member', 'admin', 'superadmin'].includes(expectedRole)) {
+    throw new Error('Choose a valid account type to sign in.')
+  }
   setRememberSession(remember)
   const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
   if (error) throw error
+  const accountRole = getAccountRole(data.user)
+  if (accountRole !== expectedRole) {
+    await supabase.auth.signOut()
+    throw new Error(`This account signed in, but Supabase app_metadata.role must be "${expectedRole}" for this selection. Ask the project administrator to assign that role, then try again.`)
+  }
   return data
 }
 

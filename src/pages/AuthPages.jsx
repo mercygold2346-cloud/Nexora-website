@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowUpRight, Eye, EyeOff, LockKeyhole, MoveUpRight, ShieldC
 import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import Brand from '../components/Brand.jsx'
 import { useAuth } from '../auth/AuthProvider.jsx'
-import { requestPasswordReset, signInWithPassword, signUpWithPassword } from '../auth/authService.js'
+import { getRoleHomePath, requestPasswordReset, signInWithGoogle, signInWithPassword, signUpWithPassword } from '../auth/authService.js'
 
 export function AuthLayout({ children, title, description, configured }) {
   return (
@@ -59,18 +59,38 @@ function explainAuthError(error) {
   return error?.message || 'Authentication could not be completed. Please try again.'
 }
 
+function GoogleSignInButton({ configured, busy, setBusy, setError, remember = true, disabled = false }) {
+  async function continueWithGoogle() {
+    setError('')
+    setBusy(true)
+    try {
+      await signInWithGoogle({ remember })
+    } catch (authError) {
+      setError(explainAuthError(authError))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <button className="button button-outline button-wide google-auth-button" type="button" onClick={continueWithGoogle} disabled={!configured || busy || disabled}>
+      <span className="google-mark" aria-hidden="true">G</span>{busy ? 'Connecting to Google…' : 'Continue with Google'}
+    </button>
+  )
+}
+
 export function Login() {
   const navigate = useNavigate()
   const { session, loading, configured } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [role, setRole] = useState('member')
   const [remember, setRemember] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
   if (loading) return <AuthLayout title="Welcome back" description="Checking your Nexora session." configured={configured} />
-  if (session) return <Navigate to="/dashboard" replace />
+  if (session && !busy) return <Navigate to={getRoleHomePath(session.user)} replace />
 
   async function submit(event) {
     event.preventDefault()
@@ -81,8 +101,8 @@ export function Login() {
     if (password.length < 8) return setError('Your password must be at least 8 characters.')
     setBusy(true)
     try {
-      await signInWithPassword({ email, password, remember })
-      navigate('/dashboard')
+      await signInWithPassword({ email, password, remember, role })
+      navigate(role === 'member' ? '/dashboard' : '/admin')
     } catch (authError) {
       const message = explainAuthError(authError).toLowerCase()
       if (message.includes('incorrect') || message.includes('not registered') || message.includes('invalid login credentials')) {
@@ -117,6 +137,18 @@ export function Login() {
   return (
     <AuthLayout title="Welcome back" description="Log in with the email and password you registered with." configured={configured}>
       <form className="form-stack auth-form" onSubmit={submit} noValidate>
+        <GoogleSignInButton configured={configured} busy={busy} setBusy={setBusy} setError={setError} remember={remember} />
+        <div className="auth-divider"><span>or use email</span></div>
+        <fieldset className="role-field">
+          <legend>Sign in as</legend>
+          <div className="role-selector" aria-label="Account type">
+            {['member', 'admin', 'superadmin'].map(accountRole => (
+              <button key={accountRole} type="button" aria-pressed={role === accountRole} onClick={() => { setRole(accountRole); setError('') }}>
+                {accountRole === 'superadmin' ? 'Superadmin' : accountRole[0].toUpperCase() + accountRole.slice(1)}
+              </button>
+            ))}
+          </div>
+        </fieldset>
         <label className="field"><span>Email address</span><input type="email" name="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" placeholder="you@company.com" required /></label>
         <PasswordField id="password" label="Password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" />
         <div className="auth-options">
@@ -148,7 +180,7 @@ export function Register() {
   const [notice, setNotice] = useState(location.state?.notice || '')
 
   if (loading) return <AuthLayout title="Start with Nexora" description="Checking your Nexora session." configured={configured} />
-  if (session) return <Navigate to="/dashboard" replace />
+  if (session) return <Navigate to={getRoleHomePath(session.user)} replace />
 
   async function submit(event) {
     event.preventDefault()
@@ -163,7 +195,7 @@ export function Register() {
     setBusy(true)
     try {
       const { session: newSession } = await signUpWithPassword({ name, email, password })
-      if (newSession) navigate('/dashboard')
+      if (newSession) navigate(getRoleHomePath(newSession.user))
       else setNotice('Check your inbox for the Supabase confirmation link before logging in.')
     } catch (authError) {
       setError(explainAuthError(authError))
@@ -183,6 +215,8 @@ export function Register() {
         <PasswordField id="new-password" label="Password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="new-password" hint="At least 8 characters" />
         <PasswordField id="confirm-password" label="Confirm password" value={confirm} onChange={event => setConfirm(event.target.value)} autoComplete="new-password" />
         <label className="check-label terms-check"><input type="checkbox" checked={terms} onChange={event => setTerms(event.target.checked)} /><span>I agree to Nexora’s <a href="#terms" onClick={event => { event.preventDefault(); setError('Terms and conditions are not configured yet.') }}>terms and conditions</a>.</span></label>
+        <div className="auth-divider"><span>or use Google</span></div>
+        <GoogleSignInButton configured={configured} busy={busy} setBusy={setBusy} setError={setError} disabled={!terms} />
         {error && <p className="form-error" role="alert">{error}</p>}
         {notice && <p className="form-notice" role="status">{notice}</p>}
         {!configured && <p className="form-notice" role="status">Add your Supabase URL and publishable key to .env.local, then restart Vite.</p>}

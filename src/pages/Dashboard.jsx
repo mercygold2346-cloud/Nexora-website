@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { ArrowUpRight, CalendarDays, Check, CircleHelp, LayoutDashboard, LogOut, Menu, Settings2, ShieldCheck, X } from 'lucide-react'
+import { ArrowUpRight, CalendarDays, Check, CircleHelp, LayoutDashboard, LogOut, Menu, Settings2, ShieldCheck, UsersRound, X } from 'lucide-react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import Brand from '../components/Brand.jsx'
 import { useAuth } from '../auth/AuthProvider.jsx'
-import { signOut } from '../auth/authService.js'
+import { getAccountRole, signOut } from '../auth/authService.js'
 
 function formatDate(value) {
   if (!value) return 'Not available'
@@ -18,6 +18,7 @@ export default function Dashboard() {
 
   if (loading) return <main className="auth-panel"><p role="status">Checking your Nexora session…</p></main>
   if (!configured || !session || !user) return <Navigate to="/login" replace />
+  if (['admin', 'superadmin'].includes(getAccountRole(user))) return <Navigate to="/admin" replace />
 
   const email = user.email || 'Email unavailable'
   const name = user.user_metadata?.full_name || email.split('@')[0]
@@ -39,7 +40,7 @@ export default function Dashboard() {
         <div className="sidebar-brand-row"><Brand /><button className="icon-button sidebar-close" aria-label="Close sidebar" onClick={() => setMobileNav(false)}><X size={18} /></button></div>
         <div className="workspace-switch"><span className="workspace-avatar">N</span><span><strong>Nexora</strong><small>Personal workspace</small></span></div>
         <span className="sidebar-label">WORKSPACE</span>
-        <nav className="sidebar-nav" aria-label="Workspace navigation"><a className="sidebar-link active" href="#overview"><LayoutDashboard size={17} /> Overview</a><a className="sidebar-link" href="#workspace-data"><ShieldCheck size={17} /> Workspace data</a></nav>
+        <nav className="sidebar-nav" aria-label="Workspace navigation"><a className="sidebar-link active" href="#overview"><LayoutDashboard size={17} /> Overview</a><Link className="sidebar-link" to="/users"><UsersRound size={17} /> People</Link><a className="sidebar-link" href="#workspace-data"><ShieldCheck size={17} /> Workspace data</a></nav>
         <span className="sidebar-label sidebar-label-spaced">PERSONAL</span>
         <nav className="sidebar-nav" aria-label="Personal navigation"><Link className="sidebar-link" to="/profile"><Settings2 size={17} /> Profile & settings</Link><a className="sidebar-link" href="mailto:hello@nexora.example"><CircleHelp size={17} /> Help & support</a></nav>
         <div className="sidebar-bottom"><button className="sidebar-user" onClick={() => navigate('/profile')}><span className="user-avatar">{initials || 'NX'}</span><span><strong>{name}</strong><small>{email}</small></span></button></div>
