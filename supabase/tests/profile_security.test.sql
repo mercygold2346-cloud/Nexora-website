@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(44);
+select plan(47);
 
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data)
 values
@@ -12,6 +12,18 @@ values
   ('00000000-0000-0000-0000-000000000000', '10000000-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'super-a@test.invalid', '', now(), '{"role":"superadmin"}', '{"full_name":"Superadmin A"}'),
   ('00000000-0000-0000-0000-000000000000', '10000000-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'super-b@test.invalid', '', now(), '{"role":"superadmin"}', '{"full_name":"Superadmin B"}')
 on conflict (id) do nothing;
+
+insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data)
+values ('00000000-0000-0000-0000-000000000000', '10000000-0000-0000-0000-000000000007', 'authenticated', 'authenticated', 'google-new@test.invalid', '', now(), '{"provider":"google","providers":["google"]}', '{"full_name":"Google New"}')
+on conflict (id) do nothing;
+
+select is((select raw_app_meta_data ->> 'role' from auth.users where id = '10000000-0000-0000-0000-000000000007'), 'member', 'new Google account defaults to member');
+update auth.users set raw_user_meta_data = raw_user_meta_data || '{"picture":"https://example.test/admin.png"}'::jsonb
+where id = '10000000-0000-0000-0000-000000000003';
+select is((select raw_app_meta_data ->> 'role' from auth.users where id = '10000000-0000-0000-0000-000000000003'), 'admin', 'Google metadata update preserves existing admin role');
+update auth.users set raw_user_meta_data = raw_user_meta_data || '{"picture":"https://example.test/superadmin.png"}'::jsonb
+where id = '10000000-0000-0000-0000-000000000005';
+select is((select raw_app_meta_data ->> 'role' from auth.users where id = '10000000-0000-0000-0000-000000000005'), 'superadmin', 'Google metadata update preserves existing superadmin role');
 
 update public.profiles set avatar_path = user_id::text || '/avatar.png'
 where user_id between '10000000-0000-0000-0000-000000000001' and '10000000-0000-0000-0000-000000000006';

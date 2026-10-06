@@ -14,8 +14,25 @@ export function getAccountRole(user) {
   return normalizeRole(user?.app_metadata?.role)
 }
 
-export function getRoleHomePath(user) {
-  return ['admin', 'superadmin'].includes(getAccountRole(user)) ? '/admin' : '/dashboard'
+export function getRoleHomePath(role) {
+  if (!['member', 'admin', 'superadmin'].includes(role)) {
+    throw new Error('The authenticated account has no valid application role.')
+  }
+  return ['admin', 'superadmin'].includes(role) ? '/admin' : '/dashboard'
+}
+
+export async function getAuthenticatedRole() {
+  requireSupabase()
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError) throw userError
+  if (!user) throw new Error('Sign in before loading your account role.')
+
+  const { data: role, error } = await supabase.rpc('current_app_role')
+  if (error) throw error
+  if (!['member', 'admin', 'superadmin'].includes(role)) {
+    throw new Error('Your account role could not be verified. Contact the project administrator.')
+  }
+  return role
 }
 
 export async function signInWithGoogle({ remember = true } = {}) {
@@ -31,21 +48,30 @@ export async function signInWithGoogle({ remember = true } = {}) {
   if (error) throw error
 }
 
-export async function signInWithPassword({ email, password, remember, role = 'member' }) {
+export async function signInWithDiscord({ remember = true } = {}) {
   requireSupabase()
-  const expectedRole = normalizeRole(role)
-  if (!['member', 'admin', 'superadmin'].includes(expectedRole)) {
-    throw new Error('Choose a valid account type to sign in.')
-  }
+  setRememberSession(remember)
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'discord',
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`,
+    },
+  })
+  if (error) throw error
+}
+
+export async function signInWithPassword({ email, password, remember }) {
+  requireSupabase()
   setRememberSession(remember)
   const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
   if (error) throw error
-  const accountRole = getAccountRole(data.user)
-  if (accountRole !== expectedRole) {
+  try {
+    const role = await getAuthenticatedRole()
+    return { ...data, role }
+  } catch (roleError) {
     await supabase.auth.signOut()
-    throw new Error(`This account signed in, but Supabase app_metadata.role must be "${expectedRole}" for this selection. Ask the project administrator to assign that role, then try again.`)
+    throw roleError
   }
-  return data
 }
 
 export async function signUpWithPassword({ name, email, password }) {
@@ -60,7 +86,18 @@ export async function signUpWithPassword({ name, email, password }) {
   })
   if (error) throw error
   if (data.session) setRememberSession(true)
-  return data
+  const role = data.session ? await getAuthenticatedRole() : null
+  return { ...data, role }
+}
+
+export async function resendSignupConfirmation(email) {
+  requireSupabase()
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email: email.trim(),
+    options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+  })
+  if (error) throw error
 }
 
 export async function requestPasswordReset(email) {

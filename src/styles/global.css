@@ -343,15 +343,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .auth-title h2 { margin: 8px 0 5px; font-family: Manrope, sans-serif; font-size: 29px; line-height: 1.25; }
 .auth-title p { margin: 0; color: var(--muted-text); font-size: 12px; }
 .auth-form { gap: 15px; }
-.google-auth-button { min-height: 43px; gap: 10px; font-size: 11px; }
+.google-auth-button, .discord-auth-button { min-height: 43px; gap: 10px; font-size: 11px; }
 .google-mark { color: #4285f4; font-family: Manrope, sans-serif; font-size: 17px; font-weight: 800; line-height: 1; }
+.discord-mark { display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; color: #fff; background: #5865f2; font-family: Manrope, sans-serif; font-size: 11px; font-weight: 800; line-height: 1; }
 .auth-divider { display: flex; align-items: center; gap: 10px; color: var(--muted-text); font-size: 8px; text-align: center; text-transform: uppercase; }
 .auth-divider::before, .auth-divider::after { height: 1px; flex: 1; background: var(--border); content: ''; }
-.role-field { min-width: 0; margin: 0; padding: 0; border: 0; }
-.role-field legend { margin-bottom: 7px; color: var(--text); font-size: 10px; font-weight: 700; }
-.role-selector { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 3px; border: 1px solid var(--border); border-radius: 3px; background: var(--background); }
-.role-selector button { min-width: 0; padding: 9px 5px; border: 0; border-radius: 2px; color: var(--muted-text); background: transparent; font: inherit; font-size: 10px; font-weight: 600; cursor: pointer; }
-.role-selector button[aria-pressed="true"] { color: var(--surface); background: var(--primary); }
 .password-wrap { position: relative; display: block; }
 .password-wrap input { padding-right: 45px; }
 .password-toggle { position: absolute; top: 2px; right: 3px; display: grid; width: 38px; height: 39px; place-items: center; border: 0; color: var(--muted-text); background: transparent; cursor: pointer; }

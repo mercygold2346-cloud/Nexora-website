@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowLeft, ArrowUpRight, Eye, EyeOff, LockKeyhole, MoveUpRight, ShieldCheck } from 'lucide-react'
 import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import Brand from '../components/Brand.jsx'
 import { useAuth } from '../auth/AuthProvider.jsx'
-import { getRoleHomePath, requestPasswordReset, signInWithGoogle, signInWithPassword, signUpWithPassword } from '../auth/authService.js'
+import { getAuthenticatedRole, getRoleHomePath, requestPasswordReset, resendSignupConfirmation, signInWithDiscord, signInWithGoogle, signInWithPassword, signOut, signUpWithPassword } from '../auth/authService.js'
 
 export function AuthLayout({ children, title, description, configured }) {
   return (
@@ -59,12 +59,62 @@ function explainAuthError(error) {
   return error?.message || 'Authentication could not be completed. Please try again.'
 }
 
-function GoogleSignInButton({ configured, busy, setBusy, setError, remember = true, disabled = false }) {
-  async function continueWithGoogle() {
+export function AuthenticatedRedirect() {
+  const navigate = useNavigate()
+  const { session, configured } = useAuth()
+  const [role, setRole] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    getAuthenticatedRole().then(authenticatedRole => {
+      if (active) setRole(authenticatedRole)
+    }).catch(roleError => {
+      if (active) setError(roleError.message || 'Could not verify your account role.')
+    })
+    return () => { active = false }
+  }, [session?.user?.id])
+
+  if (role) return <Navigate to={getRoleHomePath(role)} replace />
+  if (error) {
+    return (
+      <AuthLayout title="Account verification required" description="Nexora could not verify your account role." configured={configured}>
+        <p className="form-error" role="alert">{error}</p>
+        <button className="button button-outline button-wide" type="button" onClick={async () => { await signOut(); navigate('/login', { replace: true }) }}>Sign out and return to login</button>
+      </AuthLayout>
+    )
+  }
+  return <AuthLayout title="Welcome back" description="Verifying your account access…" configured={configured} />
+}
+
+function OAuthSignInButton({ provider, configured, busy, setBusy, setError, remember = true, disabled = false }) {
+  const buttonConfig = {
+    google: {
+      label: 'Continue with Google',
+      loading: 'Connecting to Google…',
+      mark: 'G',
+      className: 'google-auth-button',
+      markClass: 'google-mark',
+      action: () => signInWithGoogle({ remember }),
+    },
+    discord: {
+      label: 'Continue with Discord',
+      loading: 'Connecting to Discord…',
+      mark: 'D',
+      className: 'discord-auth-button',
+      markClass: 'discord-mark',
+      action: () => signInWithDiscord({ remember }),
+    },
+  }
+
+  const config = buttonConfig[provider]
+  if (!config) return null
+
+  async function continueWithProvider() {
     setError('')
     setBusy(true)
     try {
-      await signInWithGoogle({ remember })
+      await config.action()
     } catch (authError) {
       setError(explainAuthError(authError))
       setBusy(false)
@@ -72,8 +122,8 @@ function GoogleSignInButton({ configured, busy, setBusy, setError, remember = tr
   }
 
   return (
-    <button className="button button-outline button-wide google-auth-button" type="button" onClick={continueWithGoogle} disabled={!configured || busy || disabled}>
-      <span className="google-mark" aria-hidden="true">G</span>{busy ? 'Connecting to Google…' : 'Continue with Google'}
+    <button className={`button button-outline button-wide ${config.className}`} type="button" onClick={continueWithProvider} disabled={!configured || busy || disabled}>
+      <span className={config.markClass} aria-hidden="true">{config.mark}</span>{busy ? config.loading : config.label}
     </button>
   )
 }
@@ -83,14 +133,13 @@ export function Login() {
   const { session, loading, configured } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState('member')
   const [remember, setRemember] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
   if (loading) return <AuthLayout title="Welcome back" description="Checking your Nexora session." configured={configured} />
-  if (session && !busy) return <Navigate to={getRoleHomePath(session.user)} replace />
+  if (session && !busy) return <AuthenticatedRedirect />
 
   async function submit(event) {
     event.preventDefault()
@@ -101,8 +150,8 @@ export function Login() {
     if (password.length < 8) return setError('Your password must be at least 8 characters.')
     setBusy(true)
     try {
-      await signInWithPassword({ email, password, remember, role })
-      navigate(role === 'member' ? '/dashboard' : '/admin')
+      const { role: authenticatedRole } = await signInWithPassword({ email, password, remember })
+      navigate(getRoleHomePath(authenticatedRole))
     } catch (authError) {
       const message = explainAuthError(authError).toLowerCase()
       if (message.includes('incorrect') || message.includes('not registered') || message.includes('invalid login credentials')) {
@@ -137,18 +186,9 @@ export function Login() {
   return (
     <AuthLayout title="Welcome back" description="Log in with the email and password you registered with." configured={configured}>
       <form className="form-stack auth-form" onSubmit={submit} noValidate>
-        <GoogleSignInButton configured={configured} busy={busy} setBusy={setBusy} setError={setError} remember={remember} />
+        <OAuthSignInButton provider="google" configured={configured} busy={busy} setBusy={setBusy} setError={setError} remember={remember} />
+        <OAuthSignInButton provider="discord" configured={configured} busy={busy} setBusy={setBusy} setError={setError} remember={remember} />
         <div className="auth-divider"><span>or use email</span></div>
-        <fieldset className="role-field">
-          <legend>Sign in as</legend>
-          <div className="role-selector" aria-label="Account type">
-            {['member', 'admin', 'superadmin'].map(accountRole => (
-              <button key={accountRole} type="button" aria-pressed={role === accountRole} onClick={() => { setRole(accountRole); setError('') }}>
-                {accountRole === 'superadmin' ? 'Superadmin' : accountRole[0].toUpperCase() + accountRole.slice(1)}
-              </button>
-            ))}
-          </div>
-        </fieldset>
         <label className="field"><span>Email address</span><input type="email" name="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" placeholder="you@company.com" required /></label>
         <PasswordField id="password" label="Password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" />
         <div className="auth-options">
@@ -176,11 +216,13 @@ export function Register() {
   const [confirm, setConfirm] = useState('')
   const [terms, setTerms] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [resendBusy, setResendBusy] = useState(false)
+  const [confirmationEmail, setConfirmationEmail] = useState('')
   const [error, setError] = useState(location.state?.notice || '')
   const [notice, setNotice] = useState(location.state?.notice || '')
 
   if (loading) return <AuthLayout title="Start with Nexora" description="Checking your Nexora session." configured={configured} />
-  if (session) return <Navigate to={getRoleHomePath(session.user)} replace />
+  if (session) return <AuthenticatedRedirect />
 
   async function submit(event) {
     event.preventDefault()
@@ -194,13 +236,30 @@ export function Register() {
     if (!terms) return setError('Please agree to the terms to create your account.')
     setBusy(true)
     try {
-      const { session: newSession } = await signUpWithPassword({ name, email, password })
-      if (newSession) navigate(getRoleHomePath(newSession.user))
-      else setNotice('Check your inbox for the Supabase confirmation link before logging in.')
+      const { session: newSession, role: authenticatedRole } = await signUpWithPassword({ name, email, password })
+      if (newSession) navigate(getRoleHomePath(authenticatedRole))
+      else {
+        setConfirmationEmail(email.trim())
+        setNotice('Supabase did not return a session. If email confirmation is enabled, check your inbox and spam folder for a verification link.')
+      }
     } catch (authError) {
       setError(explainAuthError(authError))
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function resendConfirmation() {
+    setError('')
+    setNotice('')
+    setResendBusy(true)
+    try {
+      await resendSignupConfirmation(confirmationEmail)
+      setNotice('If this address has a pending confirmation and email delivery is configured, Supabase will send another link. Check your spam folder too.')
+    } catch (resendError) {
+      setError(explainAuthError(resendError))
+    } finally {
+      setResendBusy(false)
     }
   }
 
@@ -215,15 +274,17 @@ export function Register() {
         <PasswordField id="new-password" label="Password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="new-password" hint="At least 8 characters" />
         <PasswordField id="confirm-password" label="Confirm password" value={confirm} onChange={event => setConfirm(event.target.value)} autoComplete="new-password" />
         <label className="check-label terms-check"><input type="checkbox" checked={terms} onChange={event => setTerms(event.target.checked)} /><span>I agree to Nexora’s <a href="#terms" onClick={event => { event.preventDefault(); setError('Terms and conditions are not configured yet.') }}>terms and conditions</a>.</span></label>
-        <div className="auth-divider"><span>or use Google</span></div>
-        <GoogleSignInButton configured={configured} busy={busy} setBusy={setBusy} setError={setError} disabled={!terms} />
+        <div className="auth-divider"><span>or use social sign-in</span></div>
+        <OAuthSignInButton provider="google" configured={configured} busy={busy} setBusy={setBusy} setError={setError} disabled={!terms} />
+        <OAuthSignInButton provider="discord" configured={configured} busy={busy} setBusy={setBusy} setError={setError} disabled={!terms} />
         {error && <p className="form-error" role="alert">{error}</p>}
         {notice && <p className="form-notice" role="status">{notice}</p>}
+        {confirmationEmail && <button className="button button-outline button-wide" type="button" onClick={resendConfirmation} disabled={resendBusy}>{resendBusy ? 'Requesting link…' : 'Resend confirmation email'}</button>}
         {!configured && <p className="form-notice" role="status">Add your Supabase URL and publishable key to .env.local, then restart Vite.</p>}
         <button className="button button-primary button-wide" type="submit" disabled={busy || !configured}>{busy ? 'Creating account…' : 'Create your account'} <ArrowUpRight size={16} /></button>
       </form>
       <p className="auth-switch">Already have an account? <Link to="/login">Log in <ArrowUpRight size={14} /></Link></p>
-      <div className="auth-demo-note"><LockKeyhole size={16} /><p><strong>Supabase account.</strong> New users may need to confirm their email before logging in.</p></div>
+      <div className="auth-demo-note"><LockKeyhole size={16} /><p><strong>Email not arriving?</strong> Check spam and Supabase Auth email logs. Production delivery to Gmail requires a configured SMTP provider.</p></div>
     </AuthLayout>
   )
 }
