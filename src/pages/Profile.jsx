@@ -40,6 +40,8 @@ export default function Profile() {
 
   const email = user.email || ''
   const accountRole = getAccountRole(user)
+  const profileRole = profile?.role || accountRole
+  const displayRole = { member: 'Member', admin: 'Admin', superadmin: 'Superadmin' }[profileRole] || 'Member'
   const returnPath = ['admin', 'superadmin'].includes(accountRole) ? '/admin' : '/dashboard'
 
   async function changeAvatar(event) {
@@ -113,17 +115,18 @@ export default function Profile() {
           <nav className="settings-nav" aria-label="Settings sections"><a className="settings-nav-item active" href="#profile"><UserRound size={17} /> Personal profile</a><a className="settings-nav-item" href="#notifications"><Bell size={17} /> Notifications</a><a className="settings-nav-item" href="#security"><ShieldCheck size={17} /> Account & security</a></nav>
           <div className="settings-content">
             <form className="settings-section" id="profile" onSubmit={save}>
-              <div className="settings-section-heading"><div><h2>Personal profile</h2><p>Your name is saved to your Supabase Auth profile.</p></div><span className="eyebrow">NEXORA</span></div>
-              <div className="profile-identity"><ProfileImage url={profile?.avatar_signed_url} name={name || email} className="profile-avatar" /><span><strong>{name || email}</strong><small>{email}</small><RoleBadge role={profile?.role || accountRole} /></span></div>
+              <div className="settings-section-heading"><div><h2>Personal profile</h2><p>Manage your own profile details and image.</p></div><span className="eyebrow">NEXORA</span></div>
+              <div className="profile-identity"><ProfileImage url={profile?.avatar_signed_url} name={name || email} className="profile-avatar" /><span><strong>{name || email}</strong><small>{email}</small><RoleBadge role={profileRole} /></span></div>
               <div className="profile-image-controls">
                 <div><strong>Profile image</strong><small>JPEG, PNG, or WebP. Maximum 5 MB.</small></div>
                 <div className="profile-image-actions">
-                  <button className="button button-secondary button-small" type="button" onClick={() => avatarInput.current?.click()} disabled={avatarBusy || !profile}><Camera size={15} />{avatarBusy ? 'Updating…' : 'Change image'}</button>
-                  {profile?.avatar_path && <button className="button button-secondary button-small" type="button" onClick={removeAvatar} disabled={avatarBusy}><Trash2 size={15} />Remove</button>}
+                  <button className="button button-secondary button-small" type="button" onClick={() => avatarInput.current?.click()} disabled={avatarBusy}><Camera size={15} />{avatarBusy ? 'Updating…' : (profile?.avatar_path ? 'Change image' : 'Upload profile image')}</button>
+                  {profile?.avatar_path && <button className="button button-secondary button-small" type="button" onClick={removeAvatar} disabled={avatarBusy}><Trash2 size={15} />Delete image</button>}
                   <input ref={avatarInput} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={changeAvatar} aria-label="Choose profile image" />
                 </div>
               </div>
               <div className="field-row"><label className="field"><span>Full name</span><input value={name} onChange={event => { setName(event.target.value); setSaved(false) }} autoComplete="name" required minLength="2" /></label><label className="field"><span>Email address</span><input type="email" value={email} autoComplete="email" readOnly /><small className="field-hint">Email is managed by Supabase Authentication.</small></label></div>
+              <div className="field-row"><label className="field"><span>Current role</span><input value={displayRole} readOnly /></label></div>
               {error && <p className="form-error" role="alert">{error}</p>}
               {notice && <p className="form-notice" role="status">{notice}</p>}
               <div className="settings-save-row">{saved && <span className="saved-message"><Check size={15} /> Saved</span>}<button className="button button-primary button-small" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save changes'} <ArrowUpRight size={15} /></button></div>

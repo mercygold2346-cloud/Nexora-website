@@ -18,7 +18,7 @@ export function getRoleHomePath(role) {
   if (!['member', 'admin', 'superadmin'].includes(role)) {
     throw new Error('The authenticated account has no valid application role.')
   }
-  return ['admin', 'superadmin'].includes(role) ? '/admin' : '/dashboard'
+  return '/dashboard'
 }
 
 export async function getAuthenticatedRole() {

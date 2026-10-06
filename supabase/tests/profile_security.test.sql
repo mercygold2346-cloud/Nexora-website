@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(47);
+select plan(50);
 
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data)
 values
@@ -68,6 +68,7 @@ select is(public.can_view_profile_avatar('10000000-0000-0000-0000-000000000005')
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000001', true);
 select is((select count(*)::integer from public.profiles), 1, 'direct profile reads expose only the current user row');
+select is((select count(*)::integer from public.list_visible_profiles() where user_id between '10000000-0000-0000-0000-000000000001' and '10000000-0000-0000-0000-000000000006'), 6, 'member sees all role profile cards');
 select lives_ok($$update public.profiles set full_name = 'Member A updated', avatar_path = '10000000-0000-0000-0000-000000000001/avatar-33333333-3333-3333-3333-333333333333.webp' where user_id = '10000000-0000-0000-0000-000000000001'$$, 'member can update own profile and avatar path');
 select is((with changed as (update public.profiles set full_name = 'Unauthorized' where user_id = '10000000-0000-0000-0000-000000000003' returning 1) select count(*)::integer from changed), 0, 'member cannot update another profile');
 select throws_ok($$insert into public.profiles (id, user_id, full_name, role) values ('10000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000003', 'Forged Admin', 'member')$$, '42501', null, 'member cannot insert a profile for another user');
@@ -88,6 +89,7 @@ select throws_ok($$update public.profiles set role = 'admin' where user_id = '10
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000003', true);
+select is((select count(*)::integer from public.list_visible_profiles() where user_id between '10000000-0000-0000-0000-000000000001' and '10000000-0000-0000-0000-000000000006'), 6, 'admin sees all role profile cards');
 select is((select count(*)::integer from storage.objects where bucket_id = 'profile-images' and name = '10000000-0000-0000-0000-000000000002/avatar.png'), 1, 'admin can read member Storage object');
 select is((select count(*)::integer from storage.objects where bucket_id = 'profile-images' and name = '10000000-0000-0000-0000-000000000004/avatar.png'), 1, 'admin can read another admin Storage object');
 select is((select count(*)::integer from storage.objects where bucket_id = 'profile-images' and name = '10000000-0000-0000-0000-000000000005/avatar.png'), 0, 'admin cannot read superadmin Storage object');
@@ -96,6 +98,7 @@ select throws_ok($$select public.set_user_role('10000000-0000-0000-0000-00000000
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000005', true);
+select is((select count(*)::integer from public.list_visible_profiles() where user_id between '10000000-0000-0000-0000-000000000001' and '10000000-0000-0000-0000-000000000006'), 6, 'superadmin sees all role profile cards');
 select is((select count(*)::integer from storage.objects where bucket_id = 'profile-images' and name = '10000000-0000-0000-0000-000000000002/avatar.png'), 1, 'superadmin can read member Storage object');
 select is((select count(*)::integer from storage.objects where bucket_id = 'profile-images' and name = '10000000-0000-0000-0000-000000000003/avatar.png'), 1, 'superadmin can read admin Storage object');
 select is((select count(*)::integer from storage.objects where bucket_id = 'profile-images' and name = '10000000-0000-0000-0000-000000000006/avatar.png'), 1, 'superadmin can read superadmin Storage object');

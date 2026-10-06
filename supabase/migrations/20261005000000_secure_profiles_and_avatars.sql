@@ -111,6 +111,20 @@ begin
 end;
 $$;
 
+create or replace function public.get_profile_role_counts()
+returns table (total_users bigint, members bigint, admins bigint, superadmins bigint)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+  return query
+  select count(*)::bigint,
+         count(*) filter (where public.app_role_for_user(p.user_id) = 'member')::bigint,
+         count(*) filter (where public.app_role_for_user(p.user_id) = 'admin')::bigint,
+         count(*) filter (where public.app_role_for_user(p.user_id) = 'superadmin')::bigint
+  from public.profiles as p;
+end;
+$$;
+
 revoke all on function public.app_role_for_user(uuid) from public, anon, authenticated;
 revoke all on function public.current_app_role() from public, anon;
 revoke all on function public.can_view_profile_avatar(uuid) from public, anon;
@@ -119,9 +133,11 @@ revoke all on function public.sync_profile_from_auth_user() from public, anon, a
 revoke all on function public.touch_profile_updated_at() from public, anon, authenticated;
 revoke all on function public.set_user_role(uuid, text) from public, anon, authenticated;
 revoke all on function public.list_visible_profiles() from public, anon;
+revoke all on function public.get_profile_role_counts() from public, anon;
 grant execute on function public.current_app_role() to authenticated, service_role;
 grant execute on function public.can_view_profile_avatar(uuid) to authenticated, service_role;
 grant execute on function public.list_visible_profiles() to authenticated;
+grant execute on function public.get_profile_role_counts() to authenticated;
 grant execute on function public.set_user_role(uuid, text) to service_role;
 
 drop trigger if exists auth_users_default_role on auth.users;
@@ -181,7 +197,6 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('profile-images', 'profile-images', false, 5242880, array['image/jpeg', 'image/png', 'image/webp']::text[])
 on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
-alter table storage.objects enable row level security;
 
 drop policy if exists profile_images_select_by_role on storage.objects;
 create policy profile_images_select_by_role on storage.objects for select to authenticated

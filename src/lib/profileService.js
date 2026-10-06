@@ -31,23 +31,60 @@ async function createAvatarUrl(path) {
 
 export async function getMyProfile() {
   requireSupabase()
-  const { data, error } = await supabase.from('profiles').select(profileColumns).single()
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError) throw userError
+  if (!user) throw new Error('Sign in again before loading your profile.')
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(profileColumns)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
   if (error) throw error
-  return { ...data, avatar_signed_url: await createAvatarUrl(data.avatar_path) }
+
+  const safeProfile = data || {
+    user_id: user.id,
+    full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Nexora member',
+    email: user.email || null,
+    role: 'member',
+    avatar_path: null,
+    created_at: new Date().toISOString(),
+  }
+
+  return {
+    ...safeProfile,
+    avatar_signed_url: safeProfile.avatar_path ? await createAvatarUrl(safeProfile.avatar_path) : null,
+  }
 }
 
 export async function listVisibleProfiles() {
   requireSupabase()
   const { data, error } = await supabase.rpc('list_visible_profiles')
   if (error) throw error
+  const rows = Array.isArray(data) ? data : []
 
-  return Promise.all(data.map(async profile => {
+  return Promise.all(rows.map(async profile => {
     try {
-      return { ...profile, avatar_signed_url: await createAvatarUrl(profile.avatar_path) }
+      return { ...profile, avatar_signed_url: profile.avatar_path ? await createAvatarUrl(profile.avatar_path) : null }
     } catch {
       return { ...profile, avatar_path: null, avatar_signed_url: null }
     }
   }))
+}
+
+export async function getProfileRoleCounts() {
+  requireSupabase()
+  const { data, error } = await supabase.rpc('get_profile_role_counts')
+  if (error) throw error
+  const counts = Array.isArray(data) ? data[0] : data
+  if (!counts) throw new Error('Profile totals are unavailable.')
+  return {
+    total: Number(counts.total_users) || 0,
+    members: Number(counts.members) || 0,
+    admins: Number(counts.admins) || 0,
+    superadmins: Number(counts.superadmins) || 0,
+  }
 }
 
 export async function uploadMyAvatar(file) {

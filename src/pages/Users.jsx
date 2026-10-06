@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, Search, ShieldCheck } from 'lucide-react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider.jsx'
-import { getAccountRole } from '../auth/authService.js'
 import { ProfileImage, RoleBadge } from '../components/ProfileImage.jsx'
 import Brand from '../components/Brand.jsx'
 import { listVisibleProfiles } from '../lib/profileService.js'
@@ -11,6 +10,7 @@ export default function Users() {
   const { user, session, loading, configured } = useAuth()
   const [profiles, setProfiles] = useState([])
   const [query, setQuery] = useState('')
+  const [roleFilter, setRoleFilter] = useState('all')
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState('')
 
@@ -29,26 +29,37 @@ export default function Users() {
   }, [user])
 
   const normalizedQuery = query.trim().toLowerCase()
-  const visibleProfiles = normalizedQuery
-    ? profiles.filter(profile => `${profile.full_name} ${profile.role}`.toLowerCase().includes(normalizedQuery))
-    : profiles
+  const visibleProfiles = profiles.filter(profile => {
+    const matchesQuery = !normalizedQuery || `${profile.full_name || ''} ${profile.role || ''}`.toLowerCase().includes(normalizedQuery)
+    const matchesRole = roleFilter === 'all' || profile.role === roleFilter
+    return matchesQuery && matchesRole
+  })
 
   if (loading) return <main className="auth-panel"><p role="status">Checking your Nexora session…</p></main>
   if (!configured || !session || !user) return <Navigate to="/login" replace />
 
-  const returnPath = ['admin', 'superadmin'].includes(getAccountRole(user)) ? '/admin' : '/dashboard'
-
   return (
     <div className="settings-app">
-      <header className="settings-header"><Brand /><Link to={returnPath} className="settings-back"><ArrowLeft size={15} /> Back to workspace</Link></header>
+      <header className="settings-header"><Brand /><Link to="/dashboard" className="settings-back"><ArrowLeft size={15} /> Back to dashboard</Link></header>
       <main className="settings-main users-main">
         <div className="users-heading">
-          <div className="settings-intro"><span className="eyebrow">NEXORA DIRECTORY</span><h1>People</h1><p>Profiles and role assignments for this workspace.</p></div>
-          <label className="users-search"><Search size={16} /><span className="visually-hidden">Search people</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search people" /></label>
+          <div className="settings-intro"><span className="eyebrow">NEXORA DIRECTORY</span><h1>All Users</h1><p>All registered profiles appear here; image access follows your role.</p></div>
+          <div className="users-controls">
+            <label className="users-search"><Search size={16} /><span className="visually-hidden">Search users</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search users..." /></label>
+            <label className="field users-role-filter">
+              <span className="visually-hidden">Filter by role</span>
+              <select value={roleFilter} onChange={event => setRoleFilter(event.target.value)} aria-label="Filter users by role">
+                <option value="all">All roles</option>
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+                <option value="superadmin">Superadmin</option>
+              </select>
+            </label>
+          </div>
         </div>
         <div className="users-result-summary" aria-live="polite">{busy ? 'Loading profiles…' : `${visibleProfiles.length} ${visibleProfiles.length === 1 ? 'person' : 'people'}`}</div>
         {error && <p className="form-error" role="alert">{error}</p>}
-        {!busy && !error && visibleProfiles.length === 0 && <p className="users-empty" role="status">{profiles.length ? 'No profiles match your search.' : 'No profiles are available yet.'}</p>}
+        {!busy && !error && visibleProfiles.length === 0 && <p className="users-empty" role="status">{profiles.length ? 'No profiles match your search or role filter.' : 'No profiles are available yet.'}</p>}
         <section className="users-grid" aria-label="User profiles">
           {visibleProfiles.map(profile => (
             <article className="user-profile-card" key={profile.user_id}>

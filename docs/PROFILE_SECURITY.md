@@ -17,6 +17,24 @@ Never ship a service-role key to the browser. New users default to `member`.
 
 The hierarchy is `member < admin < superadmin`. A viewer can retrieve an image if they are the owner or their role is at least the target's role.
 
+## Admin Invitations
+
+The `/admin` console invites new accounts through the `admin-invite-user` Supabase Edge Function. Deploy it with `supabase functions deploy admin-invite-user` after linking the CLI to the correct Supabase project. The function verifies the caller's access token and `current_app_role()` before using the server-only Auth Admin API. It accepts only a full name and email; invitations always start with the backend default role `member`. Never add `SUPABASE_SERVICE_ROLE_KEY` to `.env.local` or browser code.
+
+To grant an existing account the initial admin role, run this as a trusted project owner in the Supabase SQL Editor, replacing the email with the intended account. Confirm exactly one row is returned; no row means that address has not registered in this project yet. Then sign out and back in so the app refreshes the account session.
+
+```sql
+update auth.users
+set raw_app_meta_data = jsonb_set(
+	coalesce(raw_app_meta_data, '{}'::jsonb),
+	'{role}',
+	'"admin"'::jsonb,
+	true
+)
+where lower(email) = lower('your-account@example.com')
+returning email, raw_app_meta_data ->> 'role' as role;
+```
+
 ## Profile and Image Authorization
 
 Direct `profiles` SELECT is limited to the current user's row. That is intentional: PostgreSQL RLS is row-based and would otherwise expose `avatar_path` alongside a visible profile. The authenticated-only `list_visible_profiles()` RPC returns non-sensitive directory fields and returns `avatar_path` only when the caller's server-derived role permits the image. It does not return email or permanent URLs.

@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { ArrowUpRight, BadgeCheck, CircleHelp, Database, LayoutDashboard, LogOut, Menu, Settings2, ShieldCheck, UsersRound, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ArrowUpRight, BadgeCheck, CircleHelp, Database, LayoutDashboard, LogOut, Mail, Menu, Settings2, ShieldCheck, UserPlus, UsersRound, X } from 'lucide-react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import Brand from '../components/Brand.jsx'
 import { useAuth } from '../auth/AuthProvider.jsx'
-import { getAccountRole, signOut } from '../auth/authService.js'
+import { getAuthenticatedRole, signOut } from '../auth/authService.js'
+import { inviteMember } from '../lib/adminService.js'
 
 function formatDate(value) {
   if (!value) return 'Not available'
@@ -15,11 +16,32 @@ export default function AdminDashboard() {
   const navigate = useNavigate()
   const [mobileNav, setMobileNav] = useState(false)
   const [error, setError] = useState('')
+  const [role, setRole] = useState(null)
+  const [roleLoading, setRoleLoading] = useState(true)
+  const [roleError, setRoleError] = useState('')
+  const [inviteName, setInviteName] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteBusy, setInviteBusy] = useState(false)
+  const [inviteError, setInviteError] = useState('')
+  const [inviteNotice, setInviteNotice] = useState('')
+
+  useEffect(() => {
+    if (!user) return undefined
+    let active = true
+    getAuthenticatedRole().then(authenticatedRole => {
+      if (active) setRole(authenticatedRole)
+    }).catch(roleLookupError => {
+      if (active) setRoleError(roleLookupError.message || 'Could not verify your account role.')
+    }).finally(() => {
+      if (active) setRoleLoading(false)
+    })
+    return () => { active = false }
+  }, [user])
 
   if (loading) return <main className="auth-panel"><p role="status">Checking your Nexora session…</p></main>
   if (!configured || !session || !user) return <Navigate to="/login" replace />
-
-  const role = getAccountRole(user)
+  if (roleLoading) return <main className="auth-panel"><p role="status">Verifying your account role…</p></main>
+  if (roleError) return <main className="auth-panel"><p className="form-error" role="alert">{roleError}</p><Link className="button button-outline" to="/dashboard">Back to dashboard</Link></main>
   if (!['admin', 'superadmin'].includes(role)) return <Navigate to="/dashboard" replace />
 
   const email = user.email || 'Email unavailable'
@@ -34,6 +56,23 @@ export default function AdminDashboard() {
       navigate('/')
     } catch (signOutError) {
       setError(signOutError.message || 'Could not sign out. Please try again.')
+    }
+  }
+
+  async function submitInvite(event) {
+    event.preventDefault()
+    setInviteError('')
+    setInviteNotice('')
+    setInviteBusy(true)
+    try {
+      const result = await inviteMember({ email: inviteEmail, fullName: inviteName })
+      setInviteNotice(`Invitation sent to ${result.email}. New accounts start as members.`)
+      setInviteName('')
+      setInviteEmail('')
+    } catch (inviteFailure) {
+      setInviteError(inviteFailure.message || 'Could not send the invitation.')
+    } finally {
+      setInviteBusy(false)
     }
   }
 
@@ -76,8 +115,16 @@ export default function AdminDashboard() {
           <div className="admin-resource-grid">
             <section className="dashboard-panel admin-resource-panel" id="people">
               <div className="panel-heading"><div><span className="eyebrow">DIRECTORY</span><h2>People & access</h2></div><span className="account-empty-icon"><UsersRound size={19} /></span></div>
-              <p>A member directory is not connected yet. User administration needs a trusted server endpoint or a database table protected by Row Level Security.</p>
-              <div className="admin-resource-state"><Database size={15} /><span>Member records are not configured</span></div>
+              <p>Review all registered profiles. Profile-image access remains controlled by the role-based Storage policies.</p>
+              <Link className="text-link" to="/users">Open users directory <ArrowUpRight size={15} /></Link>
+              <form className="admin-invite-form" onSubmit={submitInvite}>
+                <label className="field"><span>Full name</span><input value={inviteName} onChange={event => setInviteName(event.target.value)} autoComplete="name" minLength="2" maxLength="100" required /></label>
+                <label className="field"><span>Email address</span><input type="email" value={inviteEmail} onChange={event => setInviteEmail(event.target.value)} autoComplete="email" required /></label>
+                {inviteError && <p className="form-error" role="alert">{inviteError}</p>}
+                {inviteNotice && <p className="form-notice" role="status">{inviteNotice}</p>}
+                <button className="button button-primary button-small" type="submit" disabled={inviteBusy}><UserPlus size={15} />{inviteBusy ? 'Sending invite…' : 'Invite member'}</button>
+                <p className="admin-invite-note"><Mail size={13} /> An invitation email is sent. The new account receives the member role.</p>
+              </form>
             </section>
             <section className="dashboard-panel admin-resource-panel" id="workspace">
               <div className="panel-heading"><div><span className="eyebrow">WORKSPACE</span><h2>Projects & activity</h2></div><span className="account-empty-icon"><LayoutDashboard size={19} /></span></div>
